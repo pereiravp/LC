@@ -19,7 +19,7 @@ def _():
     with open("dados/turmas.csv", encoding="utf-8") as f:
         turmas = [linha["turma"] for linha in csv.DictReader(f)]
     turmas
-    return
+    return (turmas,)
 
 
 @app.cell(expand_output=True)
@@ -36,7 +36,7 @@ def _():
             for linha in csv.DictReader(_f)
         ]
     disciplinas
-    return
+    return (disciplinas,)
 
 
 @app.cell
@@ -66,6 +66,32 @@ def _():
             for linha in csv.DictReader(_f)
         ]
     disponibilidade_excecoes
+    return
+
+
+@app.cell
+def _(disciplinas):
+    dias = ["Seg","Ter","Qua","Qui","Sex"]
+    tempos = list(range(1,6))
+    nomes_disciplinas = [d["disciplina"] for d in disciplinas]
+    professores = sorted(set(p["professor"] for p in disciplinas))
+
+    dias, tempos, nomes_disciplinas, professores
+    return dias, nomes_disciplinas, tempos
+
+
+@app.cell
+def _(dias, nomes_disciplinas, tempos, turmas):
+    modelo = cp_model.CpModel()
+
+    x = {}
+    for _turma in turmas:
+        for _disc in nomes_disciplinas:
+            for _dia in dias:
+                for _tempo in tempos:
+                    x[_turma,_disc,_dia,_tempo] = modelo.new_bool_var(f"x_{_turma}_{_disc}_{_dia}_{_dia}_{_tempo}")
+
+    len(x)
     return
 
 
