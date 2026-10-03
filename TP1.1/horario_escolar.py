@@ -77,7 +77,7 @@ def _(disciplinas):
     professores = sorted(set(p["professor"] for p in disciplinas))
 
     dias, tempos, nomes_disciplinas, professores
-    return dias, nomes_disciplinas, tempos
+    return dias, nomes_disciplinas, professores, tempos
 
 
 @app.cell
@@ -128,13 +128,35 @@ def _(dias, disciplinas, modelo, tempos, turmas, x):
 
 
 @app.cell
-def _(dias, disciplinas, modelo, turmas):
+def _(dias, disciplinas, modelo, tempos, turmas, x):
     # R4. Disciplinas marcadas duplo_periodo=sim só podem ser dadas em blocos de 2 tempos consecutivos, no mesmo dia (nunca um tempo isolado).
 
     for _turma in turmas:
         for _d in disciplinas:
             for _dia in dias:
-                modelo.add(sum)
+                for _tempo in tempos:
+                    if _d["duplo_periodo"] == "sim":
+                        modelo.add(x[_turma, _d["disciplina"], _dia, _tempo] 
+                                   <= sum( x[_turma, _d["disciplina"], _dia, _v] for _v in (_tempo - 1, _tempo + 1) if _v in tempos))
+    return
+
+
+@app.cell
+def _(dias, disciplinas, modelo, professores, tempos, turmas, x):
+    # R5. Um professor não pode dar duas aulas em simultâneo, mesmo que sejam a turmas ou disciplinas diferentes.
+
+    for _prof in professores:
+        for _dia in dias:
+            for _tempo in tempos:
+                modelo.add(sum(x[_turma, _d["disciplina"],_dia,_tempo] for _turma in turmas for _d in disciplinas if _d["professor"] == _prof) <= 1)
+    return
+
+
+@app.cell
+def _(modelo):
+    solver = cp_model.CpSolver()
+    estado = solver.solve(modelo)
+    solver.status_name(estado)
     return
 
 
