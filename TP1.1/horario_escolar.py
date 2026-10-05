@@ -51,7 +51,7 @@ def _():
             for linha in csv.DictReader(_f)
         ]
     salas
-    return
+    return (salas,)
 
 
 @app.cell
@@ -66,7 +66,7 @@ def _():
             for linha in csv.DictReader(_f)
         ]
     disponibilidade_excecoes
-    return
+    return (disponibilidade_excecoes,)
 
 
 @app.cell
@@ -149,6 +149,44 @@ def _(dias, disciplinas, modelo, professores, tempos, turmas, x):
         for _dia in dias:
             for _tempo in tempos:
                 modelo.add(sum(x[_turma, _d["disciplina"],_dia,_tempo] for _turma in turmas for _d in disciplinas if _d["professor"] == _prof) <= 1)
+    return
+
+
+@app.cell
+def _(disciplinas, disponibilidade_excecoes, modelo, turmas, x):
+    # R6. Um professor só pode dar aulas nos tempos em que está disponível (disponibilidade_excecoes.csv).
+
+    for _excecao in disponibilidade_excecoes:
+        modelo.add(sum(x[_turma, _d["disciplina"],_excecao["dia"],_excecao["periodo"]] for _turma in turmas for _d in disciplinas if _excecao["professor"] == _d["professor"]) == 0)
+    return
+
+
+@app.cell
+def _(dias, disciplinas, modelo, salas, tempos, turmas, x):
+    # R7. Cada aula ocupa uma sala. Disciplinas com sala_especial só podem usar salas desse tipo; as restantes usam salas normal. Em nenhum tempo o número de aulas a decorrer num tipo de sala pode exceder a quantidade desse tipo definida em salas.csv.
+
+    for _sala in salas:
+        if _sala["tipo"] == "normal":
+            _usam = [_d for _d in disciplinas if _d["sala_especial"] == ""]  
+        else:
+            _usam = [_d for _d in disciplinas if _d["sala_especial"] == _sala["sala"]]
+        for _dia in dias:
+            for _tempo in tempos:
+                modelo.add(sum(x[_turma,_d["disciplina"],_dia,_tempo] for _turma in turmas for _d in _usam) <= _sala["quantidade"])
+    return
+
+
+@app.cell
+def _():
+    # R8. Os dados de entrada são sempre lidos dos ficheiros CSV — ver secção anterior — nunca escritos diretamente no código.
+
+
+    return
+
+
+@app.cell
+def _():
+    # O1. Minimizar o número total de "buracos" no horário de cada professor — um buraco é um tempo livre, no meio do dia, entre a primeira e a última aula desse professor nesse dia.
     return
 
 
