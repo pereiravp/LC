@@ -15,61 +15,6 @@ with app.setup:
 
 
 @app.cell
-def _():
-    with open("dados/turmas.csv", encoding="utf-8") as f:
-        turmas = [linha["turma"] for linha in csv.DictReader(f)]
-    turmas
-    return (turmas,)
-
-
-@app.cell(expand_output=True)
-def _():
-    with open("dados/disciplinas.csv", encoding ="utf-8") as _f:
-        disciplinas = [
-            {
-                "disciplina": linha["disciplina"],
-                "professor": linha["professor"],
-                "carga_semanal": int(linha["carga_semanal"]),
-                "duplo_periodo": linha["duplo_periodo"],
-                "sala_especial": linha["sala_especial"],
-            }
-            for linha in csv.DictReader(_f)
-        ]
-    disciplinas
-    return (disciplinas,)
-
-
-@app.cell
-def _():
-    with open("dados/salas.csv", encoding = "utf-8") as _f:
-        salas = [
-            {
-                "sala": linha["sala"],
-                "tipo": linha["tipo"],
-                "quantidade": int(linha["quantidade"]),
-            }
-            for linha in csv.DictReader(_f)
-        ]
-    salas
-    return (salas,)
-
-
-@app.cell
-def _():
-    with open("dados/disponibilidade_excecoes.csv", encoding = "utf-8") as _f:
-        disponibilidade_excecoes = [
-            {
-                "professor": linha["professor"],
-                "dia": linha["dia"],
-                "periodo": int(linha["periodo"]),
-            }
-            for linha in csv.DictReader(_f)
-        ]
-    disponibilidade_excecoes
-    return (disponibilidade_excecoes,)
-
-
-@app.cell
 def _(disciplinas):
     dias = ["Seg","Ter","Qua","Qui","Sex"]
     tempos = list(range(1,6))
@@ -176,10 +121,61 @@ def _(dias, disciplinas, modelo, salas, tempos, turmas, x):
     return
 
 
+@app.function
+# R8. Os dados de entrada são sempre lidos dos ficheiros CSV — ver secção anterior — nunca escritos diretamente no código.
+
+def ler_dados(pasta):
+    with open(f"{pasta}/turmas.csv", encoding="utf-8") as f:
+        turmas = [linha["turma"] for linha in csv.DictReader(f)]
+    with open(f"{pasta}/disciplinas.csv", encoding="utf-8") as f:
+        disciplinas = [
+            {
+                "disciplina": linha["disciplina"],
+                "professor": linha["professor"],
+                "carga_semanal": int(linha["carga_semanal"]),
+                "duplo_periodo": linha["duplo_periodo"],
+                "sala_especial": linha["sala_especial"],
+            }
+            for linha in csv.DictReader(f)
+        ]
+    with open(f"{pasta}/salas.csv", encoding="utf-8") as f:
+        salas = [
+            {
+                "sala": linha["sala"],
+                "tipo": linha["tipo"],
+                "quantidade": int(linha["quantidade"]),
+            }
+            for linha in csv.DictReader(f)
+        ]
+    with open(f"{pasta}/disponibilidade_excecoes.csv", encoding="utf-8") as f:
+        disponibilidade_excecoes = [
+            {
+                "professor": linha["professor"],
+                "dia": linha["dia"],
+                "periodo": int(linha["periodo"]),
+            }
+            for linha in csv.DictReader(f)
+        ]
+
+    return turmas, disciplinas, salas, disponibilidade_excecoes
+
+
 @app.cell
 def _():
-    # R8. Os dados de entrada são sempre lidos dos ficheiros CSV — ver secção anterior — nunca escritos diretamente no código.
+    turmas, disciplinas, salas, disponibilidade_excecoes = ler_dados("dados")
+    return disciplinas, disponibilidade_excecoes, salas, turmas
 
+
+@app.cell
+def _():
+    _t, _di, _s, _ex = ler_dados("dados_v2")
+    _ex
+    return
+
+
+@app.cell
+def _():
+    # R9. O teu notebook tem de suportar o seguinte fluxo: (horario_escolar_enunciado.py)
 
     return
 
