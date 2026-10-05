@@ -16,35 +16,116 @@ with app.setup:
     from collections import Counter
 
 
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    # Gerador de horário escolar
+
+    ## 1. O problema e a abordagem
+
+    Queremos montar o horário semanal de duas turmas, com 5 dias e 5 tempos por dia, respeitando a carga de cada disciplina, a disponibilidade dos professores e o número de salas. Quando os recursos mudam um pouco, o horário deve ser ajustado sem ser refeito de raiz.
+
+    Tratámos isto como um problema de restrições e usámos o CP-SAT, do OR-Tools, que é o que a disciplina sugere. A ideia é descrever o que um horário válido tem de cumprir e deixar o solver encontrar um. Para cada turma, disciplina, dia e tempo existe uma variável de sim ou não ("esta turma tem esta disciplina neste tempo?"), e cada requisito do enunciado é uma regra sobre essas variáveis.
+    """)
+    return
+
+
 @app.cell
-def _(disciplinas):
-    dias = ["Seg","Ter","Qua","Qui","Sex"]
-    tempos = list(range(1,6))
-    nomes_disciplinas = [d["disciplina"] for d in disciplinas]
-    professores = sorted(set(p["professor"] for p in disciplinas))
+def _():
+    # O enunciado fixa a grelha em 5 dias com 5 tempos, por isso estes dois ficam
+    # escritos aqui. Tudo o resto vem dos CSV.
 
-    dias, tempos, nomes_disciplinas, professores
-    return dias, nomes_disciplinas, tempos
+    dias = ["Seg", "Ter", "Qua", "Qui", "Sex"]
+    tempos = list(range(1, 6))
+    return dias, tempos
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## 2. Dados
+
+    Os dados vêm de quatro ficheiros CSV (turmas, disciplinas, salas e exceções de disponibilidade) e são lidos por uma função que recebe a pasta como argumento. Assim, a mesma leitura serve para `dados/`, `dados_v2/` e para qualquer outra pasta com o mesmo formato, e não há dados escritos no código (R8).
+
+    Só os dias e os tempos estão no código, porque o enunciado fixa a grelha em 5 dias com 5 tempos.
+    """)
+    return
+
+
+@app.function
+# R8. Lê os quatro CSV de uma pasta. Está numa função para usarmos a mesma
+# leitura com dados/, dados_v2/ e dados_teste/.
+
+def ler_dados(pasta):
+    with open(f"{pasta}/turmas.csv", encoding="utf-8") as f:
+        turmas = [linha["turma"] for linha in csv.DictReader(f)]
+    with open(f"{pasta}/disciplinas.csv", encoding="utf-8") as f:
+        disciplinas = [
+            {
+                "disciplina": linha["disciplina"],
+                "professor": linha["professor"],
+                "carga_semanal": int(linha["carga_semanal"]),
+                "duplo_periodo": linha["duplo_periodo"],
+                "sala_especial": linha["sala_especial"],
+            }
+            for linha in csv.DictReader(f)
+        ]
+    with open(f"{pasta}/salas.csv", encoding="utf-8") as f:
+        salas = [
+            {
+                "sala": linha["sala"],
+                "tipo": linha["tipo"],
+                "quantidade": int(linha["quantidade"]),
+            }
+            for linha in csv.DictReader(f)
+        ]
+    with open(f"{pasta}/disponibilidade_excecoes.csv", encoding="utf-8") as f:
+        disponibilidade_excecoes = [
+            {
+                "professor": linha["professor"],
+                "dia": linha["dia"],
+                "periodo": int(linha["periodo"]),
+            }
+            for linha in csv.DictReader(f)
+        ]
+
+    return turmas, disciplinas, salas, disponibilidade_excecoes
 
 
 @app.cell
-def _(dias, nomes_disciplinas, tempos, turmas):
-    modelo = cp_model.CpModel()
+def _():
+    turmas, disciplinas, salas, disponibilidade_excecoes = ler_dados("dados")
+    return disciplinas, disponibilidade_excecoes, salas, turmas
 
-    x = {}
-    for _turma in turmas:
-        for _disc in nomes_disciplinas:
-            for _dia in dias:
-                for _tempo in tempos:
-                    x[_turma,_disc,_dia,_tempo] = modelo.new_bool_var(f"x_{_turma}_{_disc}_{_dia}_{_dia}_{_tempo}")
 
-    len(x)
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## 3. O modelo
+
+    A função `construir_modelo` recebe os dados e devolve o modelo com as variáveis e as regras. Cada variável é indexada por turma, disciplina, dia e tempo (300, com os dados iniciais). O professor não faz parte do índice, porque cada disciplina tem um só professor e sabemos qual é a partir da disciplina.
+
+    | Regra | Como está escrita |
+    |---|---|
+    | R1 | em cada tempo, uma turma tem no máximo uma aula |
+    | R2 | na semana, cada disciplina tem exatamente a carga definida |
+    | R3 | por dia, no máximo uma aula da disciplina (dois tempos, se for duplo período) |
+    | R4 | no duplo período, cada tempo com aula tem um vizinho com aula |
+    | R5 | em cada tempo, um professor tem no máximo uma aula |
+    | R6 | nos tempos de exceção, as aulas do professor somam zero |
+    | R7 | em cada tempo, as aulas que usam uma sala não passam da quantidade dessa sala |
+
+    O objetivo O1, minimizar os buracos, também é construído aqui. Para cada professor, dia e tempo, um buraco é um tempo vazio que tem aulas antes e depois.
+    """)
     return
 
 
 @app.cell
 def _(dias, tempos):
-    # construir_modelo (variáveis + R1..R7 + buracos de O1)
+    # É aqui que está o problema todo: uma variável sim/não por cada
+    # (turma, disciplina, dia, tempo) e uma regra por requisito, de R1 a R7.
+    # Recebe os dados como parâmetros porque precisamos de o construir mais do que uma vez.
+
     def construir_modelo(turmas, disciplinas, salas, excecoes):
         nomes = [d["disciplina"] for d in disciplinas]
         professores = sorted(set(d["professor"] for d in disciplinas))
@@ -149,71 +230,15 @@ def _(dias, tempos):
     return (construir_modelo,)
 
 
-@app.function
-# R8. Os dados de entrada são sempre lidos dos ficheiros CSV — ver secção anterior — nunca escritos diretamente no código.
-
-def ler_dados(pasta):
-    with open(f"{pasta}/turmas.csv", encoding="utf-8") as f:
-        turmas = [linha["turma"] for linha in csv.DictReader(f)]
-    with open(f"{pasta}/disciplinas.csv", encoding="utf-8") as f:
-        disciplinas = [
-            {
-                "disciplina": linha["disciplina"],
-                "professor": linha["professor"],
-                "carga_semanal": int(linha["carga_semanal"]),
-                "duplo_periodo": linha["duplo_periodo"],
-                "sala_especial": linha["sala_especial"],
-            }
-            for linha in csv.DictReader(f)
-        ]
-    with open(f"{pasta}/salas.csv", encoding="utf-8") as f:
-        salas = [
-            {
-                "sala": linha["sala"],
-                "tipo": linha["tipo"],
-                "quantidade": int(linha["quantidade"]),
-            }
-            for linha in csv.DictReader(f)
-        ]
-    with open(f"{pasta}/disponibilidade_excecoes.csv", encoding="utf-8") as f:
-        disponibilidade_excecoes = [
-            {
-                "professor": linha["professor"],
-                "dia": linha["dia"],
-                "periodo": int(linha["periodo"]),
-            }
-            for linha in csv.DictReader(f)
-        ]
-
-    return turmas, disciplinas, salas, disponibilidade_excecoes
-
-
-@app.cell
+@app.cell(hide_code=True)
 def _():
-    turmas, disciplinas, salas, disponibilidade_excecoes = ler_dados("dados")
-    return disciplinas, disponibilidade_excecoes, salas, turmas
+    mo.md(r"""
+    ## 4. Resolver e verificar
 
+    O `resolver` pede ao solver uma solução e devolve o horário como um conjunto de aulas, cada uma no formato (turma, disciplina, dia, tempo). As funções `gerar_do_zero` e `gerar_incremental`, que usam o `resolver`, são explicadas na secção 5.
 
-@app.cell
-def _():
-    _t, _di, _s, _ex = ler_dados("dados_v2")
-    _ex
-    return
-
-
-@app.cell
-def _():
-    # R9. O teu notebook tem de suportar o seguinte fluxo: (horario_escolar_enunciado.py)
-
-    return
-
-
-@app.cell
-def _(construir_modelo, disciplinas, disponibilidade_excecoes, salas, turmas):
-    _modelo, _x, _buracos = construir_modelo(turmas, disciplinas, salas, disponibilidade_excecoes)
-    _solver = cp_model.CpSolver()
-    _estado = _solver.solve(_modelo)
-    len(_x), _solver.status_name(_estado)
+    Para não depender só do solver, o `verificar` confere um horário olhando apenas para as aulas e para os dados, e devolve a lista de regras violadas (vazia, se o horário for válido). Testámos o verificador com sete horários inválidos de propósito, um por regra de R1 a R7, e ele apanhou todos.
+    """)
     return
 
 
@@ -255,8 +280,8 @@ def _(construir_modelo):
         return estado, horario, time.perf_counter() - t0
 
 
-    # Gera um horário a partir de um anterior: o mesmo modelo, mas com o horário
-    # antigo como pista e com o objetivo de manter o máximo de aulas onde estavam.
+    # Mesmo modelo, mas começamos pelo horário antigo e pedimos ao solver que
+    # mexa no menos possível.
     def gerar_incremental(anterior, turmas, disciplinas, salas, excecoes, limite=30):
         t0 = time.perf_counter()
         modelo, x, _ = construir_modelo(turmas, disciplinas, salas, excecoes)
@@ -270,41 +295,9 @@ def _(construir_modelo):
 
 
 @app.cell
-def _(
-    buracos_totais,
-    disciplinas,
-    disponibilidade_excecoes,
-    gerar_do_zero,
-    gerar_incremental,
-    mudancas,
-    salas,
-    turmas,
-):
-    # Fluxo do R9: gera H0 com os dados iniciais e depois H1 com dados_v2,
-    # de duas maneiras (do zero e incremental), para comparar.
-    turmas_v2, disciplinas_v2, salas_v2, excecoes_v2 = ler_dados("dados_v2")
-
-    estado_H0, H0, tempo_H0 = gerar_do_zero(
-        turmas, disciplinas, salas, disponibilidade_excecoes)
-    estado_Z, H1_zero, tempo_Z = gerar_do_zero(
-        turmas_v2, disciplinas_v2, salas_v2, excecoes_v2)
-    estado_I, H1, tempo_I = gerar_incremental(
-        H0, turmas_v2, disciplinas_v2, salas_v2, excecoes_v2)
-
-    mo.md(f"""
-    | | estado | tempo (s) | aulas que mudam vs H0 | buracos (O1) |
-    |---|---|---|---|---|
-    | H0 (`dados/`) | {estado_H0} | {tempo_H0:.3f} | – | {buracos_totais(H0, disciplinas)} |
-    | H1 do zero (`dados_v2/`) | {estado_Z} | {tempo_Z:.3f} | {mudancas(H0, H1_zero)} | {buracos_totais(H1_zero, disciplinas_v2)} |
-    | H1 incremental (`dados_v2/`) | {estado_I} | {tempo_I:.3f} | {mudancas(H0, H1)} | {buracos_totais(H1, disciplinas_v2)} |
-    """)
-    return H0, H1, disciplinas_v2, excecoes_v2, salas_v2, turmas_v2
-
-
-@app.cell
 def _(dias, tempos):
-    # Confere um horário contra os dados, sem usar o solver.
-    # Devolve a lista de violações (vazia = horário válido).
+    # Confere um horário só com os dados, sem passar pelo solver. Se houver um
+    # erro nas regras do modelo, aqui não se repete.
     def verificar(horario, turmas, disciplinas, salas, excecoes):
         erros = []
         info = {d["disciplina"]: d for d in disciplinas}
@@ -375,25 +368,6 @@ def _(dias, tempos):
 
 
 @app.cell
-def _(
-    H0,
-    H1,
-    disciplinas,
-    disciplinas_v2,
-    disponibilidade_excecoes,
-    excecoes_v2,
-    salas,
-    salas_v2,
-    turmas,
-    turmas_v2,
-    verificar,
-):
-    (verificar(H0, turmas, disciplinas, salas, disponibilidade_excecoes),
-     verificar(H1, turmas_v2, disciplinas_v2, salas_v2, excecoes_v2))
-    return
-
-
-@app.cell
 def _(disciplinas, disponibilidade_excecoes, salas, turmas, verificar):
     # Cada horário abaixo é inválido de propósito. O verificador tem de
     # apanhar a regra certa; se não apanhar, o assert falha.
@@ -414,11 +388,169 @@ def _(disciplinas, disponibilidade_excecoes, salas, turmas, verificar):
     return
 
 
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## 5. R9: construção incremental
+
+    O H0 é o horário inicial, gerado com os dados de `dados/`. O H1 é o horário para os dados de `dados_v2/` (a Prof. Ana deixa de poder dar aulas à sexta nos dois últimos tempos) e foi gerado de duas maneiras.
+
+    Do zero, construímos o modelo com os dados novos e minimizamos os buracos, sem olhar para o H0. No incremental, construímos o mesmo modelo, damos o H0 ao solver como ponto de partida e pedimos que mantenha o máximo de aulas onde estavam.
+
+    Escolhemos esta forma porque só depende dos dados novos. Serve para qualquer alteração, seja um professor, uma sala ou uma turma nova, e não precisamos de descobrir à mão que aulas foram afetadas.
+
+    A tabela compara as duas maneiras. O que sustenta a conclusão é a coluna das aulas que mudam. Os tempos vêm de uma única execução e variam de uma vez para a outra, por isso só os usamos como indicação. Depois da tabela, confirmamos que H0 e H1 cumprem as regras e comparamos as grelhas da 7ºA.
+    """)
+    return
+
+
+@app.cell
+def _(
+    buracos_totais,
+    disciplinas,
+    disponibilidade_excecoes,
+    gerar_do_zero,
+    gerar_incremental,
+    mudancas,
+    salas,
+    turmas,
+):
+    # Fluxo do R9: gera H0 com os dados iniciais e depois H1 com dados_v2,
+    # de duas maneiras (do zero e incremental), para comparar.
+    turmas_v2, disciplinas_v2, salas_v2, excecoes_v2 = ler_dados("dados_v2")
+
+    estado_H0, H0, tempo_H0 = gerar_do_zero(
+        turmas, disciplinas, salas, disponibilidade_excecoes)
+    estado_Z, H1_zero, tempo_Z = gerar_do_zero(
+        turmas_v2, disciplinas_v2, salas_v2, excecoes_v2)
+    estado_I, H1, tempo_I = gerar_incremental(
+        H0, turmas_v2, disciplinas_v2, salas_v2, excecoes_v2)
+
+    mo.md(f"""
+    | | estado | tempo (s) | aulas que mudam vs H0 | buracos (O1) |
+    |---|---|---|---|---|
+    | H0 (`dados/`) | {estado_H0} | {tempo_H0:.3f} | – | {buracos_totais(H0, disciplinas)} |
+    | H1 do zero (`dados_v2/`) | {estado_Z} | {tempo_Z:.3f} | {mudancas(H0, H1_zero)} | {buracos_totais(H1_zero, disciplinas_v2)} |
+    | H1 incremental (`dados_v2/`) | {estado_I} | {tempo_I:.3f} | {mudancas(H0, H1)} | {buracos_totais(H1, disciplinas_v2)} |
+    """)
+    return H0, H1, disciplinas_v2, excecoes_v2, salas_v2, turmas_v2
+
+
+@app.cell
+def _(
+    H0,
+    H1,
+    disciplinas,
+    disciplinas_v2,
+    disponibilidade_excecoes,
+    excecoes_v2,
+    salas,
+    salas_v2,
+    turmas,
+    turmas_v2,
+    verificar,
+):
+    (verificar(H0, turmas, disciplinas, salas, disponibilidade_excecoes),
+     verificar(H1, turmas_v2, disciplinas_v2, salas_v2, excecoes_v2))
+    return
+
+
+@app.cell
+def _(dias, tempos):
+    # Mostra o horário de uma turma numa grelha: dias nas colunas, tempos nas linhas.
+    def mostrar_horario(horario, turma):
+        grelha = {(dia, tempo): disc for (t, disc, dia, tempo) in horario if t == turma}
+        linhas = ["| Tempo | " + " | ".join(dias) + " |",
+                  "|---|" + "---|" * len(dias)]
+        for tempo in tempos:
+            celulas = [grelha.get((dia, tempo), "") for dia in dias]
+            linhas.append(f"| {tempo} | " + " | ".join(celulas) + " |")
+        return mo.md("\n".join(linhas))
+
+    return (mostrar_horario,)
+
+
+@app.cell
+def _(H0, mostrar_horario, turmas):
+    mostrar_horario(H0, turmas[0])
+    return
+
+
+@app.cell
+def _(H0, mostrar_horario, turmas):
+    mostrar_horario(H0, turmas[1])
+    return
+
+
+@app.cell
+def _(H1, mostrar_horario, turmas_v2):
+    mostrar_horario(H1, turmas_v2[0])
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## 6. Outros cenários e testes
+
+    Para não depender só do `dados_v2`, experimentámos outra alteração: o professor da primeira aula do H0 fica indisponível nesse tempo. A tabela compara de novo as duas maneiras.
+
+    Por fim, corremos o código com uma pasta de dados diferente, `dados_teste/`, com mais uma turma, mais uma disciplina e mais uma exceção. O horário gerado cumpre as regras, o que confirma que o código funciona com outros dados no mesmo formato.
+    """)
+    return
+
+
+@app.cell
+def _(
+    H0,
+    disciplinas,
+    disponibilidade_excecoes,
+    gerar_do_zero,
+    gerar_incremental,
+    mudancas,
+    salas,
+    turmas,
+):
+    # Outro tipo de alteração: o professor de uma aula de H0 fica indisponível
+    # exatamente nesse tempo.
+    _turma, _disc, _dia, _tempo = sorted(H0)[0]
+    _prof = next(d["professor"] for d in disciplinas if d["disciplina"] == _disc)
+    excecoes_extra = disponibilidade_excecoes + [
+        {"professor": _prof, "dia": _dia, "periodo": _tempo}]
+
+    _e1, H_zero_extra, tempo_zero_extra = gerar_do_zero(
+        turmas, disciplinas, salas, excecoes_extra)
+    _e2, H_inc_extra, tempo_inc_extra = gerar_incremental(
+        H0, turmas, disciplinas, salas, excecoes_extra)
+
+    mo.md(f"""
+    Cenário: {_prof} fica indisponível em {_dia}, tempo {_tempo}.
+
+    | | tempo (s) | aulas que mudam vs H0 |
+    |---|---|---|
+    | do zero | {tempo_zero_extra:.3f} | {mudancas(H0, H_zero_extra)} |
+    | incremental | {tempo_inc_extra:.3f} | {mudancas(H0, H_inc_extra)} |
+    """)
+    return
+
+
 @app.cell
 def _(gerar_do_zero, verificar):
     dados_teste = ler_dados("dados_teste")
     _estado, H_teste, _tempo = gerar_do_zero(*dados_teste)
     (_estado, len(H_teste), verificar(H_teste, *dados_teste))
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## 7. Conclusões e limitações
+
+    Nos cenários que testámos, o incremental mudou muito menos aulas do que refazer o horário do zero. O H0, o H1 e o horário do conjunto de teste passaram no verificador.
+
+    O trabalho tem limites. O modelo conta as salas por tipo e não atribui salas concretas, por isso só medimos mudanças de tempo e não de sala. O H1 incremental não otimiza os buracos. A regra R7 assume uma única linha de sala normal no ficheiro de salas. Com duas turmas a diferença de tempo entre as duas maneiras é pequena e só temos uma medição, por isso não tirámos conclusões sobre a rapidez. Ficaram por fazer os extras opcionais, as preferências dos professores e o teste com mais turmas.
+    """)
     return
 
 
