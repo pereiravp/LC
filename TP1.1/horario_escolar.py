@@ -199,7 +199,7 @@ def _(dias, tempos):
                     modelo.add(
                         sum(x[turma, d["disciplina"], dia, tempo]
                             for turma in turmas for d in usam) <= sala["quantidade"])
-            
+        
         # O1: buracos. Para cada professor/dia/tempo h:
         #   antes  = há aula em algum tempo <= h
         #   depois = há aula em algum tempo >= h
@@ -458,8 +458,10 @@ def _(
 @app.cell
 def _(dias, tempos):
     # Mostra o horário de uma turma numa grelha: dias nas colunas, tempos nas linhas.
-    def mostrar_horario(horario, turma):
-        grelha = {(dia, tempo): disc for (t, disc, dia, tempo) in horario if t == turma}
+    # As aulas que vierem em `destacar` aparecem a negrito.
+    def mostrar_horario(horario, turma, destacar=()):
+        grelha = {(dia, tempo): (f"**{disc}**" if (t, disc, dia, tempo) in destacar else disc)
+                  for (t, disc, dia, tempo) in horario if t == turma}
         linhas = ["| Tempo | " + " | ".join(dias) + " |",
                   "|---|" + "---|" * len(dias)]
         for tempo in tempos:
@@ -471,20 +473,16 @@ def _(dias, tempos):
 
 
 @app.cell
-def _(H0, mostrar_horario, turmas):
-    mostrar_horario(H0, turmas[0])
-    return
-
-
-@app.cell
-def _(H0, mostrar_horario, turmas):
-    mostrar_horario(H0, turmas[1])
-    return
-
-
-@app.cell
-def _(H1, mostrar_horario, turmas_v2):
-    mostrar_horario(H1, turmas_v2[0])
+def _(H0, H1, mostrar_horario, turmas):
+    # Antes (H0) e depois (H1 incremental), lado a lado. A negrito, a aula
+    # que saiu de um lado e a que entrou do outro.
+    mo.vstack([
+        mo.hstack([
+            mo.vstack([mo.md(f"**{t}: antes (H0)**"), mostrar_horario(H0, t, H0 - H1)]),
+            mo.vstack([mo.md(f"**{t}: depois (H1)**"), mostrar_horario(H1, t, H1 - H0)]),
+        ])
+        for t in turmas
+    ])
     return
 
 
@@ -550,6 +548,22 @@ def _():
     Nos cenários que testámos, o incremental mudou muito menos aulas do que refazer o horário do zero. O H0, o H1 e o horário do conjunto de teste passaram no verificador.
 
     O trabalho tem limites. O modelo conta as salas por tipo e não atribui salas concretas, por isso só medimos mudanças de tempo e não de sala. O H1 incremental não otimiza os buracos. A regra R7 assume uma única linha de sala normal no ficheiro de salas. Com duas turmas a diferença de tempo entre as duas maneiras é pequena e só temos uma medição, por isso não tirámos conclusões sobre a rapidez. Ficaram por fazer os extras opcionais, as preferências dos professores e o teste com mais turmas.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## 8. Escolhas técnicas
+
+    O enunciado deixa três escolhas ao nosso critério. Estas são as nossas e o porquê.
+
+    **Modelação: CP-SAT, do OR-Tools.** É o que a disciplina sugere e serve bem a este problema. Aceita variáveis de sim ou não, somas com limites, um objetivo para minimizar e um horário de partida como pista, que é o que o R9 usa.
+
+    **Leitura dos dados: módulo `csv`.** Usámos o `csv` da biblioteca standard e não o pandas porque os ficheiros são pequenos e simples, e assim não precisamos de mais uma biblioteca.
+
+    **Apresentação: tabelas em markdown.** Cada horário aparece numa grelha por turma, com os dias nas colunas e os tempos nas linhas. No R9, o antes e o depois ficam lado a lado, com as aulas que mudam a negrito.
     """)
     return
 
