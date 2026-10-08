@@ -568,5 +568,17 @@ def _():
     return
 
 
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Uso de LLM
+
+    Usámos o Claude (Anthropic) como ferramenta de apoio. A conversa completa está em: https://claude.ai/share/a1ce0606-7e8b-4cf1-8b32-e65981b7a85e
+
+    Escrito por nós com orientação do LLM: a leitura dos dados e as regras R1 a R7. Gerado pelo LLM: o objetivo dos buracos, as funções de resolução e comparação, o verificador e os testes, as grelhas, o cenário extra e o teste com outros dados. Os textos do relatório foram rascunhados pelo LLM e revistos por nós. Cada célula do código indica no topo qual é o seu caso.
+    """)
+    return
+
+
 if __name__ == "__main__":
     app.run()
