@@ -238,7 +238,7 @@ def _(mo):
 def _(mo):
     mo.md(r"""
     **R1: `box`.** O `box` guarda um grupo de células num dicionário `(linha, coluna) → valor ou None`. O `add` rejeita com `ValueError` coordenadas fora da grelha e valores fora de [1, N], e o método `matriz()` devolve o grupo como matriz n²×n².
-    O construtor aceita, opcionalmente, um conjunto inicial de células, que passa pelo add e é por isso validado.
+    O construtor aceita, opcionalmente, um conjunto inicial de células, que passa pelo add e é por isso validado.Esqueleto proposto pelo LLM; lacunas completadas e testadas por nós.
     """)
     return
 
@@ -295,7 +295,7 @@ def _():
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    **R2: `cube`.** O `cube(n, i, j)` herda do `box` e acrescenta as células do bloco (i, j), a partir do canto (i·n, j·n).
+    **R2: `cube`.** O `cube(n, i, j)` herda do `box` e acrescenta as células do bloco (i, j), a partir do canto (i·n, j·n).Código proposto pelo LLM, reescrito e testado por nós.
     """)
     return
 
@@ -319,6 +319,14 @@ def _():
 @app.cell
 def _():
     print(len(cube(3, 1, 2).celulas))
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Sinal:Escrito por nós; ideia discutida com o LLM.
+    """)
     return
 
 
@@ -370,7 +378,6 @@ def _():
 @app.cell
 def _():
     print(path(2, (2, 3), (2, 0)).celulas)
-
     return
 
 
@@ -774,6 +781,27 @@ def _(sudoku_resolvido):
 def _(sudoku_resolvido):
     p_2, g_2 = sudoku_resolvido(2)
     mostra(g_2, 2)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Uso de LLM
+
+    Usámos o Claude (Anthropic) como tutor de apoio.
+    Conversa: [https://claude.ai/share/c2e4fe49-19b4-4247-b90e-bdc850142b20]
+
+    - `box`, `matriz`, `path` e `pistas`: esqueletos com lacunas propostos pelo LLM, completados, corrigidos e testados por nós.
+    - `cube`: código proposto pelo LLM, reescrito e testado por nós.
+    - `sinal` e a validação de troços não retos no `path`: escritos por nós, com a ideia discutida com o LLM.
+    - R5 e R6 (modelo CSP e resolução): feitas com apoio do LLM e testadas por nós.
+    """)
+    return
+
+
+@app.cell
+def _():
     return
 
 
