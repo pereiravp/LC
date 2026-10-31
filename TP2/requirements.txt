@@ -1,0 +1,7 @@
+z3-solver
+cvxpy
+clarabel
+numpy
+scipy
+pytest
+marimo
